@@ -41,6 +41,20 @@ jobs:
       - name: Test
         run: |
           npm run test:ci
+      - name: Build
+        run: |
+          npm run build
+          cp package.json dist/
+          
+      - name: run build
+        run: npm run build 
+      
+      - name: Upload Artifact
+        uses: actions/upload-artifact@main
+        with:
+          name: result
+          path: dist/
+        
   deployment:
     name: provision aws infrastructure using terraform 
     runs-on: ubuntu-latest
@@ -108,18 +122,5 @@ jobs:
               cd App/dist
               sudo npm install 
               sudo pm2 start "PORT=80 node main.js"
-      - name: Build
-        run: |
-          npm run build
-          cp package.json dist/
-          
-      - name: run build
-        run: npm run build 
       
-      - name: Upload Artifact
-        uses: actions/upload-artifact@main
-        with:
-          name: result
-          path: dist/
-        
 
