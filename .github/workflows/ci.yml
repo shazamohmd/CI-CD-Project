@@ -41,7 +41,73 @@ jobs:
       - name: Test
         run: |
           npm run test:ci
+  deployment:
+    name: provision aws infrastructure using terraform 
+    runs-on: ubuntu-latest
+    needs: test
+    outputs: 
+      output1: ${{ steps.ip_address.outputs.ip }}
+    env: 
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+    steps:
+      
+      - name: AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-region: "us-east-1"
+     
+      - name: Checkout
+        uses: actions/checkout@v2
 
+      - name: Set up Terraform 
+        uses: hashicorp/setup-terraform@v1
+
+      - name: Terraform Init
+        run: terraform init
+      
+      - name: Terraform Destroy
+        run: terraform destroy -auto-approve
+      
+      - name: Terraform Apply
+        run: terraform apply --auto-approve
+      
+     
+      - id: ip_address
+        run: | 
+            terraform-bin output my_ip |tr "\"" "\0" >ip
+            echo ip=$(cat ip) >> "$GITHUB_OUTPUT" 
+    
+      - name: Download Artifact
+        uses: actions/download-artifact@main
+        with:
+          name: result
+          path: dist/    
+
+      - name: deploy copy to ec2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ steps.ip_address.outputs.ip }}
+          username: ec2-user
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          source: dist/
+          target: App
+
+      - name: multiple command
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ steps.ip_address.outputs.ip }}
+          username: ec2-user
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          script: |
+              sudo yum install nodejs -y
+              sudo npm install -g pm2
+              cd App/dist
+              sudo npm install 
+              sudo pm2 start "PORT=80 node main.js"
       - name: Build
         run: |
           npm run build
@@ -55,4 +121,5 @@ jobs:
         with:
           name: result
           path: dist/
+        
 
